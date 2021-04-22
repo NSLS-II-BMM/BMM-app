@@ -4,58 +4,23 @@ python -m bluesky_widgets.examples.kafka_figures
 For each Run, it will generate thumbnails and save them to a temporary
 directory. The filepaths will be printed to the stdout, one per line.
 """
-import importlib
 from functools import partial
 import os
 import tempfile
+
 import msgpack
 import msgpack_numpy as mpn
+from bluesky_kafka import RemoteDispatcher
 
 from bluesky_widgets.utils.streaming import stream_documents_into_runs
-from bluesky_widgets.qt import gui_qt
-from bluesky_widgets.qt.figures import QtFigures
-from bluesky_widgets.examples.utils.generate_msgpack_data import get_catalog
-from bluesky_widgets.utils.list import EventedList 
-from bluesky_widgets.qt.zmq_dispatcher import RemoteDispatcher
-from bluesky_widgets.utils.streaming import stream_documents_into_runs
-from bluesky_widgets.models.plot_builders import Lines
-from bluesky_widgets.models.auto_plot_builders import AutoPlotter
-from bluesky_widgets.models.plot_specs import Axes, Figure
-from bluesky_kafka import RemoteDispatcher
+from bluesky_widgets.models.plot_builders import AutoLines
 from bluesky_widgets.headless.figures import HeadlessFigures
 from bluesky_widgets.models.utils import run_is_live_and_not_completed
-
-figures = EventedList()
-models = []
-
-
-class AutoBMMPlot(AutoPlotter):
-
-    def handle_new_stream(self, run, stream_name):
-        if stream_name != 'primary':
-            return
-
-        xx = run.metadata['start']['motors'][0]
-        axes1 = Axes()
-        axes2 = Axes()
-        figure = Figure((axes1, axes2), title='It and I0')
-        mapping = {'It' : [Lines(x=xx, ys=['It/I0',], max_runs=1),
-                           Lines(x=xx, ys=['I0',],    max_runs=1)],
-                   'I0' : [Lines(x=xx, ys=['I0',],    max_runs=1)],
-                   #'Ir' : [Lines(x=xx, ys=['Ir/It','I0'], max_runs=1),],
-                   'Ir' : [Lines(x=xx, ys=['It/I0',], max_runs=1, axes=axes1),
-                           Lines(x=xx, ys=['I0',],    max_runs=1, axes=axes2)],
-        }
-        to_plot = run.metadata['start'].get('plot_request', 'It')
-        for model in mapping[to_plot]:
-            model.add_run(run)
-            self.figures.append(model.figure) 
-            self.plot_builders.append(model) 
 
 
 def export_thumbnails_when_complete(run):
     "Given a BlueskyRun, export thumbnail(s) to a directory when it completes."
-    model = AutoBMMPlot()
+    model = AutoLines(max_runs=3)
     model.add_run(run)
     view = HeadlessFigures(model.figures)
 
