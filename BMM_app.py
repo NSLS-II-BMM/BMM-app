@@ -1,6 +1,6 @@
 """
 Run like:
-python -m bluesky_widgets.examples.kafka_figures
+python -m BMM-app.py
 For each Run, it will generate thumbnails and save them to a temporary
 directory. The filepaths will be printed to the stdout, one per line.
 """
@@ -10,6 +10,7 @@ import os
 import tempfile
 import msgpack
 import msgpack_numpy as mpn
+import time
 
 from bluesky_widgets.utils.streaming import stream_documents_into_runs
 from bluesky_widgets.qt import gui_qt
@@ -36,21 +37,47 @@ class AutoBMMPlot(AutoPlotter):
             return
 
         xx = run.metadata['start']['motors'][0]
-        axes1 = Axes()
-        axes2 = Axes()
-        figure = Figure((axes1, axes2), title='It and I0')
-        mapping = {'It' : [Lines(x=xx, ys=['It/I0',], max_runs=1),
-                           Lines(x=xx, ys=['I0',],    max_runs=1)],
-                   'I0' : [Lines(x=xx, ys=['I0',],    max_runs=1)],
-                   #'Ir' : [Lines(x=xx, ys=['Ir/It','I0'], max_runs=1),],
-                   'Ir' : [Lines(x=xx, ys=['It/I0',], max_runs=1, axes=axes1),
-                           Lines(x=xx, ys=['I0',],    max_runs=1, axes=axes2)],
-        }
         to_plot = run.metadata['start'].get('plot_request', 'It')
-        for model in mapping[to_plot]:
+        models = []
+        figures = []
+        if to_plot == "It":
+            axes1 = Axes()
+            figure1 = Figure((axes1,), title="It/I0")
+            figures.append(figure1)
+            models.append(
+                Lines(x=xx, ys=['It/I0',], max_runs=1, axes=axes1)
+            )
+            axes2 = Axes()
+            figure2 = Figure((axes2,), title="I0")
+            figures.append(figure2)
+            models.append(
+                Lines(x=xx, ys=['I0',],    max_runs=1, axes=axes2)
+            )
+        elif to_plot == "I0":
+            axes = Axes()
+            figure = Figure((axes,), title="I0")
+            figures.append(figure)
+            models.append(
+                Lines(x=xx, ys=['I0',],    max_runs=1, axes=axes)
+            )
+        elif to_plot == "Ir":
+            axes1 = Axes()
+            axes2 = Axes()
+            figure = Figure((axes1, axes2), title='It and I0')
+            figures.append(figure)
+            models.append(
+                Lines(x=xx, ys=['It/I0',], max_runs=1, axes=axes1)
+            )
+            models.append(
+                Lines(x=xx, ys=['I0',],    max_runs=1, axes=axes2)
+            )
+        else:
+            # Plot nothing.
+            pass
+        for model in models:
             model.add_run(run)
-            self.figures.append(model.figure) 
             self.plot_builders.append(model) 
+        self.figures.extend(figures) 
 
 
 def export_thumbnails_when_complete(run):
@@ -65,10 +92,11 @@ def export_thumbnails_when_complete(run):
 
     # If the Run is already done by the time we got it, export now.
     # Otherwise, schedule it to export whenever it finishes.
-    def export(*args):
+    def export(*args, **kwargs):
         filenames = view.export_all(directory)
         print("\n".join(f'"{filename}"' for filename in filenames))
         view.close()
+
 
     if run_is_live_and_not_completed(run):
         run.events.new_data.connect(export)
@@ -77,7 +105,7 @@ def export_thumbnails_when_complete(run):
 
 
 if __name__ == "__main__":
-    bootstrap_servers = "kafka1:9092,kafka2:9092,kafka3:9092"
+    bootstrap_servers = "kafka1.nsls2.bnl.gov:9092,kafka2.nsls2.bnl.gov:9092,kafka3.nsls2.bnl.gov:9092"
     kafka_deserializer = partial(msgpack.loads, object_hook=mpn.decode)
     topics = ["bmm.bluesky.runengine.documents"]
     consumer_config = {"auto.commit.interval.ms": 100, "auto.offset.reset": "latest"}
@@ -90,4 +118,5 @@ if __name__ == "__main__":
     )
 
     dispatcher.subscribe(stream_documents_into_runs(export_thumbnails_when_complete))
+    dispatcher.subscribe(lambda name, doc: print(name, doc.get('uid'), doc.get('descriptor')))
     dispatcher.start()

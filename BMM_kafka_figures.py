@@ -13,7 +13,7 @@ import msgpack_numpy as mpn
 from bluesky_kafka import RemoteDispatcher
 
 from bluesky_widgets.utils.streaming import stream_documents_into_runs
-from bluesky_widgets.models.plot_builders import AutoLines
+from bluesky_widgets.models.auto_plot_builders import AutoLines
 from bluesky_widgets.headless.figures import HeadlessFigures
 from bluesky_widgets.models.utils import run_is_live_and_not_completed
 
@@ -42,7 +42,7 @@ def export_thumbnails_when_complete(run):
 
 
 if __name__ == "__main__":
-    bootstrap_servers = "kafka1:9092,kafka2:9092,kafka3:9092"
+    bootstrap_servers = "kafka1.nsls2.bnl.gov:9092,kafka2.nsls2.bnl.gov:9092,kafka3.nsls2.bnl.gov:9092"
     kafka_deserializer = partial(msgpack.loads, object_hook=mpn.decode)
     topics = ["bmm.bluesky.runengine.documents"]
     consumer_config = {"auto.commit.interval.ms": 100, "auto.offset.reset": "latest"}
